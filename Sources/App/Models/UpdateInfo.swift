@@ -2,20 +2,26 @@ import Fluent
 import Vapor
 
 final class UpdateInfo: Model {
-    typealias IDValue = String
+    static let schema = "updateInfo"
     
-    static let schema = "UpdateInfo"
+    @ID(key: .id)
+    var id: UUID?
     
-    @ID(key: "id")
-    var id: String?
+    @Field(key: "group")
+    var group: String
+    
+    @OptionalField(key: "object")
+    var object: UUID?
     
     @Field(key: "datetime")
     var datetime: Date
 
     init() { }
 
-    init(id: String? = "", datetime: Date) {
+    init(id: UUID? = nil, group: String, object: UUID? = nil, datetime: Date) {
         self.id = id
+        self.group = group
+        self.object = object
         self.datetime = datetime
     }
 }
