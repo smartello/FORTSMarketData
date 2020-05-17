@@ -28,7 +28,9 @@ public func configure(_ app: Application) throws {
 
     app.migrations.add(CreateUpdateInfo())
     app.migrations.add(CreateBaseAsset())
-    app.autoMigrate().wait()
+    do {
+        try app.autoMigrate().wait()
+    } catch { }
     
     // register routes
     try routes(app)
