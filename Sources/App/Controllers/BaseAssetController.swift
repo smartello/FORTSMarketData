@@ -93,7 +93,6 @@ struct BaseAssetController {
         _ = req.client.get("https://www.moex.com/s205/?print=1").map({ response in
             if response.status == .ok {
                 let string = response.body!.getString(at: 0, length: response.body!.readableBytes)?.replacingOccurrences(of: "&quot;", with: "\"").replacingOccurrences(of: "\n|\r|\t|<\\/?span>|<\\/?b>|&shy;", with: "", options: .regularExpression).replacingOccurrences(of: "&ndash;", with: "–").replacingOccurrences(of: "&nbsp;", with: " ")
-                print(string!)
                 let range = NSRange(location: 0, length: string!.count)
                 let regex = try! NSRegularExpression(pattern: "<td (align=\"center\"|style=\"text\\-align: center;\")> ?[\\w\\d ]{2} ?<\\/td><td (align=\"center\"|style=\"text\\-align: center;\")>([\\w\\d ]{2,4})<\\/td><td>([A-Za-zА-Яа-я0-9\\\"\\/\\–\\-\\.\\,\\%() ]*)<\\/td>")
                 let matches = regex.matches(in: string!, options: .init(), range: range)
