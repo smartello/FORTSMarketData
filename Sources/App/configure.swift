@@ -8,7 +8,7 @@ public func configure(_ app: Application) throws {
     // app.middleware.use(FileMiddleware(publicDirectory: app.directory.publicDirectory))
 
     let corsConfiguration = CORSMiddleware.Configuration(
-        allowedOrigin: .whitelist(["http://localhost:3000"]),
+        allowedOrigin: .whitelist(["http://localhost:3000", "http://labs.kashin.me:3000"]),
         allowedMethods: [.GET, .POST, .PUT, .OPTIONS, .DELETE, .PATCH],
         allowedHeaders: [.accept, .authorization, .contentType, .origin, .xRequestedWith, .userAgent, .accessControlAllowOrigin]
     )
@@ -28,6 +28,7 @@ public func configure(_ app: Application) throws {
 
     app.migrations.add(CreateUpdateInfo())
     app.migrations.add(CreateBaseAsset())
+    app.autoMigrate().wait()
     
     // register routes
     try routes(app)
