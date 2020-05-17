@@ -24,4 +24,8 @@ final class UpdateInfo: Model {
         self.object = object
         self.datetime = datetime
     }
+    
+    func isExpired(_ dc: DateComponents) -> Bool {
+        return Calendar.current.date(byAdding: dc, to: self.datetime)! < Date()
+    }
 }
