@@ -2,12 +2,13 @@ import Fluent
 import Vapor
 
 final class BaseAsset: Model, Content {
-    typealias IDValue = String
-    
     static let schema = "baseAsset"
     
-    @ID(custom: "id")
-    var id: String?
+    @ID(key: .id)
+    var id: UUID?
+    
+    @Field(key: "code")
+    var code: String
     
     @Field(key: "shortcut")
     var shortcut: String
@@ -17,8 +18,9 @@ final class BaseAsset: Model, Content {
     
     init() { }
     
-    init(id: String, shortcut: String, name: String) {
+    init(id: UUID? = nil, code: String, shortcut: String, name: String) {
         self.id = id
+        self.code = code
         self.shortcut = shortcut
         self.name = name
     }

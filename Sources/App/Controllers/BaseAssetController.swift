@@ -2,22 +2,36 @@ import Fluent
 import Vapor
 
 struct BaseAssetController {
+    func loadNameDictionary(_ req: Request) -> EventLoopFuture<[String:UUID]> {
+        let promise = req.eventLoop.makePromise(of: [String:UUID].self)
+        var dictionary = [String:UUID]()
+        
+        _ = loadFromDB(req).map({ baseAssets in
+            for baseAsset in baseAssets {
+                dictionary[baseAsset.name] = baseAsset.id
+            }
+            promise.succeed(dictionary)
+        })
+        
+        return promise.futureResult
+    }
+    
     // MARK: main functions
     func index(req: Request) throws -> EventLoopFuture<[BaseAsset]> {
         return UpdateInfoController.loadUpdateInfo(db: req.db, group: BaseAsset.schema).flatMap({
             updateInfo -> EventLoopFuture<[BaseAsset]> in
             
             if (updateInfo == nil || updateInfo!.isExpired(DateComponents(day: 30))) {
-                return self.loadFromAPI(req: req)
+                return self.loadFromAPI(req)
             } else {
-                return self.loadFromDB(req: req)
+                return self.loadFromDB(req)
             }
         })
     }
     
     // MARK: external source processing
     // Retrieves all entries available in API and updates the database
-    func loadFromAPI(req: Request) -> EventLoopFuture<[BaseAsset]> {
+    func loadFromAPI(_ req: Request) -> EventLoopFuture<[BaseAsset]> {
         // external model definition
         struct SecurityData: Decodable {
             let securities: Securities
@@ -63,15 +77,15 @@ struct BaseAssetController {
             }).map({ securityData in
                 var baseAssetAPI = [BaseAsset]()
 
-                _ = self.loadFromDB(req: req).map({ baseAssetDB in
+                _ = self.loadFromDB(req).map({ baseAssetDB in
                     for line in securityData.securities.data {
-                        let newBaseAsset = BaseAsset(id: line[12].stringValue, shortcut: line[10].stringValue, name: "")
-                        if !baseAssetAPI.contains(where: { return $0.id == newBaseAsset.id }) && !baseAssetDB.contains(where: { return $0.id == newBaseAsset.id }) {
+                        let newBaseAsset = BaseAsset(code: line[12].stringValue, shortcut: line[10].stringValue, name: "")
+                        if !baseAssetAPI.contains(where: { return $0.code == newBaseAsset.code }) && !baseAssetDB.contains(where: { return $0.code == newBaseAsset.code }) {
                             baseAssetAPI.append(newBaseAsset)
                         }
                     }
                     
-                    _ = self.loadNames(req: req, baseAsset: baseAssetAPI).map({ baseAssetAPI in
+                    _ = self.loadNames(req, baseAsset: baseAssetAPI).map({ baseAssetAPI in
                         promise.succeed(baseAssetDB + baseAssetAPI)
                         for asset in baseAssetAPI {
                             _ = asset.save(on: req.db)
@@ -87,7 +101,7 @@ struct BaseAssetController {
     }
 
     /// Tries to collect readable names for `BaseAsset` from web and fills `name` attribute
-    func loadNames(req: Request, baseAsset: [BaseAsset]) -> EventLoopFuture<[BaseAsset]> {
+    func loadNames(_ req: Request, baseAsset: [BaseAsset]) -> EventLoopFuture<[BaseAsset]> {
         let promise = req.eventLoop.makePromise(of: [BaseAsset].self)
         
         _ = req.client.get("https://www.moex.com/s205/?print=1").map({ response in
@@ -97,10 +111,10 @@ struct BaseAssetController {
                 let regex = try! NSRegularExpression(pattern: "<td (align=\"center\"|style=\"text\\-align: center;\")> ?[\\w\\d ]{2} ?<\\/td><td (align=\"center\"|style=\"text\\-align: center;\")>([\\w\\d ]{2,4})<\\/td><td>([A-Za-zА-Яа-я0-9\\\"\\/\\–\\-\\.\\,\\%() ]*)<\\/td>")
                 let matches = regex.matches(in: string!, options: .init(), range: range)
                 for match in matches {
-                    let idRange = Range(match.range(at: 3), in: string!)!
-                    let id = String(string![idRange])
+                    let codeRange = Range(match.range(at: 3), in: string!)!
+                    let code = String(string![codeRange])
                     
-                    let itemIndex = baseAsset.firstIndex(where: { return $0.id == id })
+                    let itemIndex = baseAsset.firstIndex(where: { return $0.code == code })
                     if itemIndex != nil {
                         let nameRange = Range(match.range(at: 4), in: string!)!
                         baseAsset[itemIndex!].name = String(string![nameRange])
@@ -115,7 +129,7 @@ struct BaseAssetController {
     }
     
     // MARK: database functions
-    func loadFromDB(req: Request) -> EventLoopFuture<[BaseAsset]> {
+    func loadFromDB(_ req: Request) -> EventLoopFuture<[BaseAsset]> {
         return BaseAsset.query(on: req.db).all()
     }
 }
