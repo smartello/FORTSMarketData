@@ -3,6 +3,7 @@ import Vapor
 func routes(_ app: Application) throws {
     let baseAssetController = BaseAssetController()
     app.get("", use: baseAssetController.index)
+    app.get(":baseAssetCode", use: baseAssetController.details)
 //    app.get { req in
 //        return "It works!"
 //    }

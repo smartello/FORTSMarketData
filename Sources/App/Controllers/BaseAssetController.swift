@@ -2,21 +2,28 @@ import Fluent
 import Vapor
 
 struct BaseAssetController {
-    func loadNameDictionary(_ req: Request) -> EventLoopFuture<[String:UUID]> {
+    // MARK: private section
+    private var dictionary = [String:UUID]()
+
+    private func _loadCodeDictionary(_ req: Request) -> EventLoopFuture<[String:UUID]> {
         let promise = req.eventLoop.makePromise(of: [String:UUID].self)
-        var dictionary = [String:UUID]()
         
-        _ = loadFromDB(req).map({ baseAssets in
-            for baseAsset in baseAssets {
-                dictionary[baseAsset.name] = baseAsset.id
-            }
+        if dictionary.count > 0 {
             promise.succeed(dictionary)
-        })
+        } else {
+            var newDictionary = [String:UUID]()
+            _ = loadFromDB(req).map({ baseAssets in
+                for baseAsset in baseAssets {
+                    newDictionary[baseAsset.code] = baseAsset.id
+                }
+                promise.succeed(newDictionary)
+            })
+        }
         
         return promise.futureResult
     }
     
-    // MARK: main functions
+    // MARK: request processing
     func index(req: Request) throws -> EventLoopFuture<[BaseAsset]> {
         return UpdateInfoController.loadUpdateInfo(db: req.db, group: BaseAsset.schema).flatMap({
             updateInfo -> EventLoopFuture<[BaseAsset]> in
@@ -27,6 +34,35 @@ struct BaseAssetController {
                 return self.loadFromDB(req)
             }
         })
+    }
+    
+    func details(req: Request) throws -> EventLoopFuture<BaseAsset> {
+        let promise = req.eventLoop.makePromise(of: BaseAsset.self)
+        let baseAssetCode = req.parameters.get("baseAssetCode")
+        
+        _ = getIdByCode(req, code: baseAssetCode!).map({ baseAssetId in
+            BaseAsset.find(baseAssetId, on: req.db).map({ baseAsset in
+                if baseAsset == nil {
+                    promise.fail(Abort(.notFound, reason: "No info on \(baseAssetCode!)"))
+                } else {
+                    promise.succeed(baseAsset!)
+                }
+            })
+        })
+        
+        return promise.futureResult
+    }
+    
+    // MARK: helper functions
+    func getIdByCode(_ req: Request, code: String) -> EventLoopFuture<UUID?> {
+        let promise = req.eventLoop.makePromise(of: UUID?.self)
+        
+        _ = _loadCodeDictionary(req).map({ dictionary in
+            let uuid = dictionary[code]
+            promise.succeed(uuid)
+        })
+        
+        return promise.futureResult
     }
     
     // MARK: external source processing
