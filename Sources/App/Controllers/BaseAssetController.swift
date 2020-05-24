@@ -25,6 +25,7 @@ struct BaseAssetController {
     
     // MARK: request processing
     func index(req: Request) throws -> EventLoopFuture<[BaseAsset]> {
+        print(req.headers)
         return UpdateInfoController.loadUpdateInfo(db: req.db, group: BaseAsset.schema).flatMap({
             updateInfo -> EventLoopFuture<[BaseAsset]> in
             
