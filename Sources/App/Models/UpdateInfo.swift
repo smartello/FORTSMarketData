@@ -28,4 +28,12 @@ final class UpdateInfo: Model {
     func isExpired(_ dc: DateComponents) -> Bool {
         return Calendar.current.date(byAdding: dc, to: self.datetime)! < Date()
     }
+    
+//    func isSameDayOrEarlier(asDate: Date) -> Bool {
+//        return (Calendar.current.compare(self.datetime, to: asDate, toGranularity: .day) != ComparisonResult.orderedDescending)
+//    }
+    
+    func getDate() -> Date {
+        return self.datetime
+    }
 }

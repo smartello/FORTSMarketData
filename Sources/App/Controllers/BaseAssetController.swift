@@ -1,21 +1,22 @@
 import Fluent
 import Vapor
 
-struct BaseAssetController {
-    // MARK: private section
-    private var dictionary = [String:UUID]()
-
-    private func _loadCodeDictionary(_ req: Request) -> EventLoopFuture<[String:UUID]> {
+class BaseAssetDictionary {
+    private static var dictionary = [String:UUID]()
+    
+    private static func _loadCodeDictionary(_ req: Request) -> EventLoopFuture<[String:UUID]> {
         let promise = req.eventLoop.makePromise(of: [String:UUID].self)
         
-        if dictionary.count > 0 {
+        if self.dictionary.count > 0 {
             promise.succeed(dictionary)
         } else {
             var newDictionary = [String:UUID]()
-            _ = loadFromDB(req).map({ baseAssets in
+            _ = BaseAssetController().loadFromDB(req).map({ baseAssets in
                 for baseAsset in baseAssets {
-                    newDictionary[baseAsset.code] = baseAsset.id
+                    newDictionary[baseAsset.code] = baseAsset.id!
+                    //print(newDictionary[baseAsset.code])
                 }
+                self.dictionary = newDictionary
                 promise.succeed(newDictionary)
             })
         }
@@ -23,9 +24,21 @@ struct BaseAssetController {
         return promise.futureResult
     }
     
+    static func getIdByCode(_ req: Request, code: String) -> EventLoopFuture<UUID?> {
+        let promise = req.eventLoop.makePromise(of: UUID?.self)
+        
+        _ = _loadCodeDictionary(req).map({ dictionary in
+            let uuid = dictionary[code]
+            promise.succeed(uuid)
+        })
+        
+        return promise.futureResult
+    }
+}
+
+struct BaseAssetController {
     // MARK: request processing
     func index(req: Request) throws -> EventLoopFuture<[BaseAsset]> {
-        print(req.headers)
         return UpdateInfoController.loadUpdateInfo(db: req.db, group: BaseAsset.schema).flatMap({
             updateInfo -> EventLoopFuture<[BaseAsset]> in
             
@@ -37,35 +50,27 @@ struct BaseAssetController {
         })
     }
     
-    func details(req: Request) throws -> EventLoopFuture<BaseAsset> {
-        let promise = req.eventLoop.makePromise(of: BaseAsset.self)
+    func details(req: Request) throws -> EventLoopFuture<BaseAssetDetailed> {
+        let promise = req.eventLoop.makePromise(of: BaseAssetDetailed.self)
         let baseAssetCode = req.parameters.get("baseAssetCode")
         
-        _ = getIdByCode(req, code: baseAssetCode!).map({ baseAssetId in
+        _ = BaseAssetDictionary.getIdByCode(req, code: baseAssetCode!).map({ baseAssetId in
             BaseAsset.find(baseAssetId, on: req.db).map({ baseAsset in
                 if baseAsset == nil {
                     promise.fail(Abort(.notFound, reason: "No info on \(baseAssetCode!)"))
                 } else {
-                    promise.succeed(baseAsset!)
+                    let baseAssetDetailed = BaseAssetDetailed(req, baseAsset: baseAsset!)
+                    _ = baseAssetDetailed.loadOpenInterest(req).map({ bad in
+                        promise.succeed(bad)
+                    })
+                    
                 }
             })
         })
         
         return promise.futureResult
     }
-    
-    // MARK: helper functions
-    func getIdByCode(_ req: Request, code: String) -> EventLoopFuture<UUID?> {
-        let promise = req.eventLoop.makePromise(of: UUID?.self)
         
-        _ = _loadCodeDictionary(req).map({ dictionary in
-            let uuid = dictionary[code]
-            promise.succeed(uuid)
-        })
-        
-        return promise.futureResult
-    }
-    
     // MARK: external source processing
     // Retrieves all entries available in API and updates the database
     func loadFromAPI(_ req: Request) -> EventLoopFuture<[BaseAsset]> {

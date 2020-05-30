@@ -7,6 +7,7 @@ struct CreateUpdateInfo: Migration {
             .field("group", .custom("VARCHAR(40)"), .required)
             .field("object", .uuid)
             .field("datetime", .datetime, .required)
+            .unique(on: "group", "object")
             .create()
     }
 

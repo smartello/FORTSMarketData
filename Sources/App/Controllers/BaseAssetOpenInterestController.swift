@@ -2,12 +2,53 @@ import Fluent
 import Vapor
 
 struct BaseAssetOpenInterestController {
+    let depth: Int = 2 //want to get the data for the whole year
+    
+    func load(_ req: Request, baseAssetId: UUID, date: Date) -> EventLoopFuture<[BaseAssetOpenInterest]> {
+        return UpdateInfoController.loadUpdateInfo(db: req.db, group: BaseAssetOpenInterest.schema).flatMap({
+            updateInfo -> EventLoopFuture<[BaseAssetOpenInterest]> in
+            
+            if (updateInfo == nil || updateInfo!.isExpired(DateComponents(day: 1))) {
+                let startDate = updateInfo == nil ? Calendar.current.date(byAdding: DateComponents(day: -1 * self.depth), to: Date())! : updateInfo!.getDate()
+                return self.loadFromCSV(req, endDate: date, startDate: startDate, baseAssetId: baseAssetId, returnDate: date)
+            } else {
+                return self.loadFromDB(req, baseAssetId: baseAssetId, date: date)
+            }
+        })
+    }
     
     // @MARK: load from CSV file
-    func loadOpenInterestFromCSV(_ req: Request, date: Date) -> EventLoopFuture<[BaseAssetOpenInterest]> {
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyyMMdd"
-        let dateString = dateFormatter.string(from: date)
+    func loadFromCSV(_ req: Request, endDate: Date, startDate: Date, baseAssetId: UUID, returnDate: Date? = nil) -> EventLoopFuture<[BaseAssetOpenInterest]> {
+        let promise = req.eventLoop.makePromise(of: [BaseAssetOpenInterest].self)
+        var resultSetFuture = [EventLoopFuture<[BaseAssetOpenInterest]>]()
+        
+        DateHelper.iterateMidnights(startDate: startDate, endDate: endDate, function: { date in resultSetFuture.append(loadFromCSV(req, date: date)) })
+        
+        _ = resultSetFuture.flatten(on: req.eventLoop).map({ baseAssetOpenInterest in
+            var oiResult = [BaseAssetOpenInterest]()
+            
+            for oiPerDay in baseAssetOpenInterest {
+                if oiPerDay.count > 0 {
+                    for oi in oiPerDay {
+                        if oi.date == returnDate && oi.baseAsset.id == baseAssetId {
+                            oiResult.append(oi)
+                        }
+                        
+                        _ = oi.save(on: req.db)
+                    }
+                }
+            }
+            
+            promise.succeed(oiResult)
+            _ = UpdateInfo(group: BaseAssetOpenInterest.schema, datetime: Date()).save(on: req.db)
+        })
+        
+        return promise.futureResult
+    }
+    
+    func loadFromCSV(_ req: Request, date: Date) -> EventLoopFuture<[BaseAssetOpenInterest]> {
+        print("!!! Loading from CSV for \(date)")
+        let dateString = DateHelper.getDateString(date)
         let promise = req.eventLoop.makePromise(of: [BaseAssetOpenInterest].self)
         
         _ = req.client.get(URI(string: "https://www.moex.com/ru/derivatives/open-positions-csv.aspx?d=\(dateString)&t=2")).map({ response in
@@ -15,31 +56,39 @@ struct BaseAssetOpenInterestController {
             if response.status == .ok {
                 let string = response.body!.getString(at: 0, length: response.body!.readableBytes, encoding: .utf8)!.replacingOccurrences(of: ",", with: ".")
                 let dataset = CSVHelper.getDataset(string)
+                var openInterests = [BaseAssetOpenInterest]()
+                //let baController = BaseAssetController()
+                    
                 if dataset.count > 0 {
-                    var openInterests = [BaseAssetOpenInterest]()
-                        
                     for line in dataset {
-                        _ = BaseAssetController().getIdByCode(req, code: line[2]).map({ baseAssetId in
+                        _ = BaseAssetDictionary.getIdByCode(req, code: line[1]).map({ baseAssetId in
                             if baseAssetId != nil {
-                                var openInterest = openInterests.first(where: { return $0.baseAsset.id == baseAssetId && $0.groupType == BaseAssetOpenInterest.AssetGroupType(rawValue: line[3]) })
+                                var openInterest = openInterests.first(where: { return $0.$baseAsset.id == baseAssetId && $0.groupType == BaseAssetOpenInterest.AssetGroupType(rawValue: line[3]) })
                                 if openInterest == nil {
                                     openInterest = BaseAssetOpenInterest(baseAssetId: baseAssetId!, date: date, groupType: BaseAssetOpenInterest.AssetGroupType(rawValue: line[3])!)
                                     openInterests.append(openInterest!)
                                 }
                                 if line[4] == "1" {
-                                    openInterest!.setIndOpenInterest(longVolume: UInt(line[8])!, longNumber: UInt(line[5])!, shortVolume: UInt(line[7])!, shortNumber: UInt(line[6])!)
+                                    openInterest!.setIndOpenInterest(longVolume: UInt(Double(line[8]) ?? 0), longNumber: UInt(Double(line[5]) ?? 0), shortVolume: UInt(Double(line[7]) ?? 0), shortNumber: UInt(Double(line[6]) ?? 0))
                                 } else {
-                                    openInterest!.setComOpenInterest(longVolume: UInt(line[8])!, longNumber: UInt(line[5])!, shortVolume: UInt(line[7])!, shortNumber: UInt(line[6])!)
+                                    openInterest!.setComOpenInterest(longVolume: UInt(Double(line[8]) ?? 0), longNumber: UInt(Double(line[5]) ?? 0), shortVolume: UInt(Double(line[7]) ?? 0), shortNumber: UInt(Double(line[6]) ?? 0))
                                 }
                             }
+                            //print(baController.dictionary.count)
                         })
                     }
-                    
-                    promise.succeed(openInterests)
                 }
+                
+                promise.succeed(openInterests)
             }
         })
         
         return promise.futureResult
+    }
+    
+    // MARK: database functions
+    func loadFromDB(_ req: Request, baseAssetId: UUID, date: Date) -> EventLoopFuture<[BaseAssetOpenInterest]> {
+        
+        return BaseAssetOpenInterest.query(on: req.db).filter(\.$baseAsset.$id == baseAssetId).filter(\.$date == date).all()
     }
 }
