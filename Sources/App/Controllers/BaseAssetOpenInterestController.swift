@@ -85,7 +85,7 @@ struct BaseAssetOpenInterestController {
                 promise.succeed(openInterests)
             }
         }).whenFailure({ error in
-            print("*** Failed request for data \(dateString)")
+            print("*** Failed request for data \(dateString). Error: \(error)")
             promise.fail(error)
         })
         
