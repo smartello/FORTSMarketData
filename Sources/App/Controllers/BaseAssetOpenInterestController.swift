@@ -66,7 +66,7 @@ struct BaseAssetOpenInterestController {
                     
                 if dataset.count > 0 {
                     for line in dataset {
-                        _ = BaseAssetDictionary.getIdByCode(req, code: line[1]).map({ baseAssetId in
+                        BaseAssetDictionary.getIdByCode(req, code: line[1]).map({ baseAssetId in
                             if baseAssetId != nil {
                                 var openInterest = openInterests.first(where: { return $0.$baseAsset.id == baseAssetId && $0.groupType == BaseAssetOpenInterest.AssetGroupType(rawValue: line[3]) })
                                 if openInterest == nil {
@@ -80,6 +80,9 @@ struct BaseAssetOpenInterestController {
                                 }
                             }
                             //print(baController.dictionary.count)
+                        }).whenFailure({ error in
+                            print("*** Failure: no data in dictionary for \(line[1])")
+                            promise.fail(error)
                         })
                     }
                 }
