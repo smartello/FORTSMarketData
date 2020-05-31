@@ -8,7 +8,8 @@ struct DateHelper {
     }
     
     static func getStartOfDay(_ date: Date) -> Date {
-        return Calendar.current.startOfDay(for: date).advanced(by: TimeInterval(Calendar.current.timeZone.secondsFromGMT(for: date)))
+        return Calendar.current.date(byAdding: .second, value: Calendar.current.timeZone.secondsFromGMT(for: date), to: Calendar.current.startOfDay(for: date))!
+            //Calendar.current.startOfDay(for: date).advanced(by: TimeInterval(Calendar.current.timeZone.secondsFromGMT(for: date)))
     }
     
     static func iterateMidnights(startDate: Date, endDate: Date, function: (_: Date) -> Void ) {
