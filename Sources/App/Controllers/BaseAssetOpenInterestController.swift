@@ -23,7 +23,7 @@ struct BaseAssetOpenInterestController {
         var resultSetFuture = [EventLoopFuture<[BaseAssetOpenInterest]>]()
         
         DateHelper.iterateMidnights(startDate: startDate, endDate: endDate, function: { date in resultSetFuture.append(loadFromCSV(req, date: date)) })
-        
+            
         _ = resultSetFuture.flatten(on: req.eventLoop).map({ baseAssetOpenInterest in
             var oiResult = [BaseAssetOpenInterest]()
             
@@ -54,7 +54,7 @@ struct BaseAssetOpenInterestController {
         let dateString = DateHelper.getDateString(date)
         let promise = req.eventLoop.makePromise(of: [BaseAssetOpenInterest].self)
         
-        _ = req.client.get(URI(string: "https://www.moex.com/ru/derivatives/open-positions-csv.aspx?d=\(dateString)&t=2")).map({ response in
+        req.client.get(URI(string: "https://www.moex.com/ru/derivatives/open-positions-csv.aspx?d=\(dateString)&t=2")).map({ response in
             print("data received for \(date), status is \(response.status)")
             if response.status == .ok {
                 let string = response.body!.getString(at: 0, length: response.body!.readableBytes, encoding: .utf8)!.replacingOccurrences(of: ",", with: ".")
@@ -84,6 +84,9 @@ struct BaseAssetOpenInterestController {
                 
                 promise.succeed(openInterests)
             }
+        }).whenFailure({ error in
+            print("*** Failed request for data \(dateString)")
+            promise.fail(error)
         })
         
         return promise.futureResult
