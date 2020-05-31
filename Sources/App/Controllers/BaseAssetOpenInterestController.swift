@@ -2,15 +2,15 @@ import Fluent
 import Vapor
 
 struct BaseAssetOpenInterestController {
-    let depth: Int = 2 //want to get the data for the whole year
+    let depth: Int = 365 //want to get the data for the whole year
     
     func load(_ req: Request, baseAssetId: UUID, date: Date) -> EventLoopFuture<[BaseAssetOpenInterest]> {
         return UpdateInfoController.loadUpdateInfo(db: req.db, group: BaseAssetOpenInterest.schema).flatMap({
             updateInfo -> EventLoopFuture<[BaseAssetOpenInterest]> in
             
-            if (updateInfo == nil || updateInfo!.isExpired(DateComponents(day: 1))) {
+            if (updateInfo == nil || !updateInfo!.isToday()) {
                 let startDate = updateInfo == nil ? Calendar.current.date(byAdding: DateComponents(day: -1 * self.depth), to: Date())! : updateInfo!.getDate()
-                return self.loadFromCSV(req, endDate: date, startDate: startDate, baseAssetId: baseAssetId, returnDate: date)
+                return self.loadFromCSV(req, endDate: date, startDate: startDate, baseAssetId: baseAssetId, returnDate: date, updateInfo: updateInfo)
             } else {
                 return self.loadFromDB(req, baseAssetId: baseAssetId, date: date)
             }
@@ -18,7 +18,7 @@ struct BaseAssetOpenInterestController {
     }
     
     // @MARK: load from CSV file
-    func loadFromCSV(_ req: Request, endDate: Date, startDate: Date, baseAssetId: UUID, returnDate: Date? = nil) -> EventLoopFuture<[BaseAssetOpenInterest]> {
+    func loadFromCSV(_ req: Request, endDate: Date, startDate: Date, baseAssetId: UUID, returnDate: Date? = nil, updateInfo: UpdateInfo? = nil) -> EventLoopFuture<[BaseAssetOpenInterest]> {
         let promise = req.eventLoop.makePromise(of: [BaseAssetOpenInterest].self)
         var resultSetFuture = [EventLoopFuture<[BaseAssetOpenInterest]>]()
         
@@ -40,19 +40,22 @@ struct BaseAssetOpenInterestController {
             }
             
             promise.succeed(oiResult)
-            _ = UpdateInfo(group: BaseAssetOpenInterest.schema, datetime: Date()).save(on: req.db)
+            if updateInfo == nil {
+                UpdateInfoController.createUpdateInfo(req, group: BaseAssetOpenInterest.schema, date: Date())
+            } else {
+                updateInfo?.setUpdateTime(req, date: Date())
+            }
         })
         
         return promise.futureResult
     }
     
     func loadFromCSV(_ req: Request, date: Date) -> EventLoopFuture<[BaseAssetOpenInterest]> {
-        print("!!! Loading from CSV for \(date)")
         let dateString = DateHelper.getDateString(date)
         let promise = req.eventLoop.makePromise(of: [BaseAssetOpenInterest].self)
         
         _ = req.client.get(URI(string: "https://www.moex.com/ru/derivatives/open-positions-csv.aspx?d=\(dateString)&t=2")).map({ response in
-            
+            print("data received for \(date), status is \(response.status)")
             if response.status == .ok {
                 let string = response.body!.getString(at: 0, length: response.body!.readableBytes, encoding: .utf8)!.replacingOccurrences(of: ",", with: ".")
                 let dataset = CSVHelper.getDataset(string)
@@ -68,7 +71,7 @@ struct BaseAssetOpenInterestController {
                                     openInterest = BaseAssetOpenInterest(baseAssetId: baseAssetId!, date: date, groupType: BaseAssetOpenInterest.AssetGroupType(rawValue: line[3])!)
                                     openInterests.append(openInterest!)
                                 }
-                                if line[4] == "1" {
+                                if UInt(Double(line[4]) ?? 0) == 1 {
                                     openInterest!.setIndOpenInterest(longVolume: UInt(Double(line[8]) ?? 0), longNumber: UInt(Double(line[5]) ?? 0), shortVolume: UInt(Double(line[7]) ?? 0), shortNumber: UInt(Double(line[6]) ?? 0))
                                 } else {
                                     openInterest!.setComOpenInterest(longVolume: UInt(Double(line[8]) ?? 0), longNumber: UInt(Double(line[5]) ?? 0), shortVolume: UInt(Double(line[7]) ?? 0), shortNumber: UInt(Double(line[6]) ?? 0))

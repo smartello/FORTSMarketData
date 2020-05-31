@@ -11,13 +11,18 @@ class BaseAssetDictionary {
             promise.succeed(dictionary)
         } else {
             var newDictionary = [String:UUID]()
-            _ = BaseAssetController().loadFromDB(req).map({ baseAssets in
+            _ = BaseAssetController().loadFromDB(req).flatMapThrowing({ baseAssets throws in
                 for baseAsset in baseAssets {
-                    newDictionary[baseAsset.code] = baseAsset.id!
-                    //print(newDictionary[baseAsset.code])
+                    if baseAsset.id != nil {
+                        newDictionary[baseAsset.code] = baseAsset.id!
+                    }
                 }
-                self.dictionary = newDictionary
-                promise.succeed(newDictionary)
+                if newDictionary.count > 0 {
+                    self.dictionary = newDictionary
+                    promise.succeed(newDictionary)
+                } else {
+                    promise.fail(Abort(.notFound, reason: "Asset list is not yet ready, try again later"))
+                }
             })
         }
         
@@ -27,9 +32,11 @@ class BaseAssetDictionary {
     static func getIdByCode(_ req: Request, code: String) -> EventLoopFuture<UUID?> {
         let promise = req.eventLoop.makePromise(of: UUID?.self)
         
-        _ = _loadCodeDictionary(req).map({ dictionary in
+        _loadCodeDictionary(req).map({ dictionary in
             let uuid = dictionary[code]
             promise.succeed(uuid)
+        }).whenFailure({ error in
+            promise.fail(error)
         })
         
         return promise.futureResult
@@ -43,7 +50,7 @@ struct BaseAssetController {
             updateInfo -> EventLoopFuture<[BaseAsset]> in
             
             if (updateInfo == nil || updateInfo!.isExpired(DateComponents(day: 30))) {
-                return self.loadFromAPI(req)
+                return self.loadFromAPI(req, updateInfo: updateInfo)
             } else {
                 return self.loadFromDB(req)
             }
@@ -54,18 +61,24 @@ struct BaseAssetController {
         let promise = req.eventLoop.makePromise(of: BaseAssetDetailed.self)
         let baseAssetCode = req.parameters.get("baseAssetCode")
         
-        _ = BaseAssetDictionary.getIdByCode(req, code: baseAssetCode!).map({ baseAssetId in
-            BaseAsset.find(baseAssetId, on: req.db).map({ baseAsset in
-                if baseAsset == nil {
-                    promise.fail(Abort(.notFound, reason: "No info on \(baseAssetCode!)"))
-                } else {
-                    let baseAssetDetailed = BaseAssetDetailed(req, baseAsset: baseAsset!)
-                    _ = baseAssetDetailed.loadOpenInterest(req).map({ bad in
-                        promise.succeed(bad)
-                    })
-                    
-                }
-            })
+        BaseAssetDictionary.getIdByCode(req, code: baseAssetCode!).map({ baseAssetId in
+            if baseAssetId == nil {
+                promise.fail(Abort(.notFound, reason: "No info on \(baseAssetCode!)"))
+            } else {
+                _ = BaseAsset.find(baseAssetId, on: req.db).map({ baseAsset in
+                    if baseAsset == nil {
+                        promise.fail(Abort(.notFound, reason: "No info on \(baseAssetCode!)"))
+                    } else {
+                        let baseAssetDetailed = BaseAssetDetailed(req, baseAsset: baseAsset!)
+                        _ = baseAssetDetailed.loadOpenInterest(req).map({ bad in
+                            promise.succeed(bad)
+                        })
+                        
+                    }
+                })
+            }
+        }).whenFailure({ error in
+            promise.fail(error)
         })
         
         return promise.futureResult
@@ -73,7 +86,7 @@ struct BaseAssetController {
         
     // MARK: external source processing
     // Retrieves all entries available in API and updates the database
-    func loadFromAPI(_ req: Request) -> EventLoopFuture<[BaseAsset]> {
+    func loadFromAPI(_ req: Request, updateInfo: UpdateInfo? = nil) -> EventLoopFuture<[BaseAsset]> {
         // external model definition
         struct SecurityData: Decodable {
             let securities: Securities
@@ -135,7 +148,11 @@ struct BaseAssetController {
                     })
                 })
                 
-                _ = UpdateInfo(group: BaseAsset.schema, datetime: Date()).save(on: req.db)
+                if updateInfo == nil {
+                    UpdateInfoController.createUpdateInfo(req, group: BaseAsset.schema, date: Date())
+                } else {
+                    updateInfo!.setUpdateTime(req, date: Date())
+                }
                 
             })
         

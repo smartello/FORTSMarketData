@@ -29,11 +29,16 @@ final class UpdateInfo: Model {
         return Calendar.current.date(byAdding: dc, to: self.datetime)! < Date()
     }
     
-//    func isSameDayOrEarlier(asDate: Date) -> Bool {
-//        return (Calendar.current.compare(self.datetime, to: asDate, toGranularity: .day) != ComparisonResult.orderedDescending)
-//    }
+    func isToday() -> Bool {
+        return Calendar.current.isDateInToday(self.datetime)
+    }
     
     func getDate() -> Date {
         return self.datetime
+    }
+    
+    func setUpdateTime(_ req: Request, date: Date) {
+        self.datetime = date
+        _ = self.update(on: req.db)
     }
 }

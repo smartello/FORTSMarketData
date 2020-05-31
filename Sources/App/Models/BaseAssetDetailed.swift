@@ -1,4 +1,5 @@
 import Vapor
+import Fluent
 
 final class BaseAssetDetailed: Content {
     var baseAsset: BaseAsset
@@ -22,17 +23,34 @@ final class BaseAssetDetailed: Content {
         
         let baoiController = BaseAssetOpenInterestController()
         _ = baoiController.load(req, baseAssetId: self.baseAsset.id!, date: Date()).map({ baoi in
-            for oi in baoi {
-                if oi.groupType == .futures {
-                    self.openInterestFutures = oi
-                } else if oi.groupType == .option_put {
-                    self.openInterestOptionsPut = oi
-                } else if oi.groupType == .option_call {
-                    self.openInterestOptionsCall = oi
+            if baoi.count == 0 {
+                _ = BaseAssetOpenInterest.query(on: req.db).filter(\.$baseAsset.$id == self.baseAsset.id!).aggregate(.maximum, \.$date, as: Date.self).map({ date in
+                    _ = baoiController.load(req, baseAssetId: self.baseAsset.id!, date: date).map({ baoi in
+                        
+                        for oi in baoi {
+                            if oi.groupType == .futures {
+                                self.openInterestFutures = oi
+                            } else if oi.groupType == .option_put {
+                                self.openInterestOptionsPut = oi
+                            } else if oi.groupType == .option_call {
+                                self.openInterestOptionsCall = oi
+                            }
+                        }
+                        promise.succeed(self)
+                    })
+                })
+            } else {
+                for oi in baoi {
+                    if oi.groupType == .futures {
+                        self.openInterestFutures = oi
+                    } else if oi.groupType == .option_put {
+                        self.openInterestOptionsPut = oi
+                    } else if oi.groupType == .option_call {
+                        self.openInterestOptionsCall = oi
+                    }
                 }
+                promise.succeed(self)
             }
-            
-            promise.succeed(self)
         })
         
         return promise.futureResult
