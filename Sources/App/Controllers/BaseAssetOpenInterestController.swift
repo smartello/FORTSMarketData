@@ -25,6 +25,8 @@ struct BaseAssetOpenInterestController {
         DateHelper.iterateMidnights(startDate: startDate, endDate: endDate, function: { date in resultSetFuture.append(loadFromCSV(req, date: date)) })
             
         _ = resultSetFuture.flatten(on: req.eventLoop).map({ baseAssetOpenInterest in
+            print("ok, it's all received (or not) and it's a time for db update")
+            
             var oiResult = [BaseAssetOpenInterest]()
             
             for oiPerDay in baseAssetOpenInterest {
