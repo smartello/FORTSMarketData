@@ -12,17 +12,17 @@ struct UpdateInfoController {
         return query.first()
     }
     
-    static func createUpdateInfo(_ req: Request, group: String, object: UUID? = nil, date: Date) {
+    static func createUpdateInfo(_ req: Request, group: String, object: UUID? = nil, date: Date) -> EventLoopFuture<Void> {
         if object == nil { // unique constraint doesn't work because of nil, ensure there's no entry
-            _ = loadUpdateInfo(db: req.db, group: group).map({ updateInfo in
+            return loadUpdateInfo(db: req.db, group: group).flatMap({ updateInfo -> EventLoopFuture<Void> in
                 if updateInfo == nil {
-                    _ = UpdateInfo(group: group, datetime: date).save(on: req.db)
+                    return UpdateInfo(group: group, datetime: date).save(on: req.db)
                 } else {
-                    updateInfo!.setUpdateTime(req, date: date)
+                    return updateInfo!.setUpdateTime(req, date: date)
                 }
             })
         } else {
-            _ = UpdateInfo(group: group, object: object, datetime: date).save(on: req.db)
+            return UpdateInfo(group: group, object: object, datetime: date).save(on: req.db)
         }
     }
 }

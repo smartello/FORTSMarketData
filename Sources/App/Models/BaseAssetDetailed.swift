@@ -22,7 +22,7 @@ final class BaseAssetDetailed: Content {
         let promise = req.eventLoop.makePromise(of: BaseAssetDetailed.self)
         
         let baoiController = BaseAssetOpenInterestController()
-        _ = baoiController.load(req, baseAssetId: self.baseAsset.id!, date: Date()).map({ baoi in
+        _ = baoiController.load(req, baseAssetId: self.baseAsset.id!, date: DateHelper.getPreviousDay(Date())).map({ baoi in
             if baoi.count == 0 {
                 _ = BaseAssetOpenInterest.query(on: req.db).filter(\.$baseAsset.$id == self.baseAsset.id!).aggregate(.maximum, \.$date, as: Date.self).map({ date in
                     _ = baoiController.load(req, baseAssetId: self.baseAsset.id!, date: date).map({ baoi in

@@ -20,9 +20,10 @@ struct BaseAssetOpenInterestController {
     // @MARK: load from CSV file
     func loadFromCSV(_ req: Request, endDate: Date, startDate: Date, baseAssetId: UUID, returnDate: Date? = nil, updateInfo: UpdateInfo? = nil) -> EventLoopFuture<[BaseAssetOpenInterest]> {
         let promise = req.eventLoop.makePromise(of: [BaseAssetOpenInterest].self)
+        let queue = EventLoopFutureQueue(eventLoop: req.eventLoop)
         var resultSetFuture = [EventLoopFuture<[BaseAssetOpenInterest]>]()
         
-        DateHelper.iterateMidnights(startDate: startDate, endDate: endDate, function: { date in resultSetFuture.append(loadFromCSV(req, date: date)) })
+        DateHelper.iterateMidnights(startDate: startDate, endDate: endDate, function: { date in resultSetFuture.append(queue.append(self.loadFromCSV(req, date: date))) })
             
         _ = resultSetFuture.flatten(on: req.eventLoop).map({ baseAssetOpenInterest in
             print("ok, it's all received (or not) and it's a time for db update")
@@ -31,7 +32,7 @@ struct BaseAssetOpenInterestController {
             
             for oiPerDay in baseAssetOpenInterest {
                 if oiPerDay.count > 0 {
-                    for oi in oiPerDay {
+                    _ = oiPerDay.map { oi in
                         if oi.date == returnDate && oi.baseAsset.id == baseAssetId {
                             oiResult.append(oi)
                         }
@@ -41,11 +42,14 @@ struct BaseAssetOpenInterestController {
                 }
             }
             
-            promise.succeed(oiResult)
             if updateInfo == nil {
-                UpdateInfoController.createUpdateInfo(req, group: BaseAssetOpenInterest.schema, date: Date())
+                _ = UpdateInfoController.createUpdateInfo(req, group: BaseAssetOpenInterest.schema, date: Date()).map({
+                   promise.succeed(oiResult)
+                })
             } else {
-                updateInfo?.setUpdateTime(req, date: Date())
+                _ = updateInfo!.setUpdateTime(req, date: Date()).map({
+                   promise.succeed(oiResult)
+                })
             }
         })
         

@@ -37,8 +37,8 @@ final class UpdateInfo: Model {
         return self.datetime
     }
     
-    func setUpdateTime(_ req: Request, date: Date) {
+    func setUpdateTime(_ req: Request, date: Date) -> EventLoopFuture<Void> {
         self.datetime = date
-        _ = self.update(on: req.db)
+        return self.update(on: req.db)
     }
 }

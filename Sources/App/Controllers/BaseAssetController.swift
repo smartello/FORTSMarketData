@@ -149,9 +149,9 @@ struct BaseAssetController {
                 })
                 
                 if updateInfo == nil {
-                    UpdateInfoController.createUpdateInfo(req, group: BaseAsset.schema, date: Date())
+                    _ = UpdateInfoController.createUpdateInfo(req, group: BaseAsset.schema, date: Date())
                 } else {
-                    updateInfo!.setUpdateTime(req, date: Date())
+                    _ = updateInfo!.setUpdateTime(req, date: Date())
                 }
                 
             })
