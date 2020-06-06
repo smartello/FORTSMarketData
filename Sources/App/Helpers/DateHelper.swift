@@ -21,7 +21,7 @@ struct DateHelper {
         
         // Finding matching dates at midnight - adjust as needed
         let components = DateComponents(hour: 0, minute: 0, second: 0) // midnight
-        //function(newStartDate)
+        function(newStartDate)
         return Calendar.current.enumerateDates(startingAfter: newStartDate, matching: components, matchingPolicy: .nextTime) { (date, strict, stop) in
             if let date = date {
                 if date <= endDate {
