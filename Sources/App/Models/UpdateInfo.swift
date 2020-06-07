@@ -47,6 +47,7 @@ final class UpdateInfo: Model {
     }
     
     func finishLongOperation(_ req: Request) -> EventLoopFuture<Void> {
+        self.datetime = Date()
         self.longOperationStart = nil
         return self.update(on: req.db)
     }
