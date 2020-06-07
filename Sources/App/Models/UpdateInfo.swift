@@ -46,9 +46,17 @@ final class UpdateInfo: Model {
         return self.update(on: req.db)
     }
     
+    func finishLongOperation(_ req: Request) -> EventLoopFuture<Void> {
+        self.longOperationStart = nil
+        return self.update(on: req.db)
+    }
+    
+    func longOperationInProgress() -> Bool {
+        return self.longOperationStart == nil ? false : Calendar.current.date(byAdding: DateComponents(hour: -1), to: self.longOperationStart!)! < Date()
+    }
+    
     func setUpdateTime(_ req: Request, date: Date) -> EventLoopFuture<Void> {
         self.datetime = date
-        self.longOperationStart = nil
         return self.update(on: req.db)
     }
 }

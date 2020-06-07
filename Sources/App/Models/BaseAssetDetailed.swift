@@ -6,14 +6,7 @@ final class BaseAssetDetailed: Content {
     var openInterestFutures: BaseAssetOpenInterest?
     var openInterestOptionsPut: BaseAssetOpenInterest?
     var openInterestOptionsCall: BaseAssetOpenInterest?
-    
-//    init(req: Request, baseAssetId: UUID) {
-//        self.baseAssetId = baseAssetId
-//        self.baseAsset = BaseAsset.find(baseAssetId, on: req.db).map({ baseAsset in
-//            return baseAsset!
-//        })
-//    }
-    
+        
     init(_ req: Request, baseAsset: BaseAsset) {
         self.baseAsset = baseAsset
     }
@@ -24,7 +17,7 @@ final class BaseAssetDetailed: Content {
         let baoiController = BaseAssetOpenInterestController()
         _ = baoiController.load(req, baseAssetId: self.baseAsset.id!, date: DateHelper.getPreviousDay(Date())).map({ baoi in
             if baoi.count == 0 {
-                _ = BaseAssetOpenInterest.query(on: req.db).filter(\.$baseAsset.$id == self.baseAsset.id!).aggregate(.maximum, \.$date, as: Date.self).map({ date in
+               BaseAssetOpenInterest.query(on: req.db).filter(\.$baseAsset.$id == self.baseAsset.id!).aggregate(.maximum, \.$date, as: Date.self).map({ date in
                     _ = baoiController.load(req, baseAssetId: self.baseAsset.id!, date: date).map({ baoi in
                         
                         for oi in baoi {
@@ -38,6 +31,8 @@ final class BaseAssetDetailed: Content {
                         }
                         promise.succeed(self)
                     })
+                }).whenFailure({ error in
+                    promise.succeed(self)
                 })
             } else {
                 for oi in baoi {

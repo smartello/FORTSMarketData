@@ -46,10 +46,10 @@ class BaseAssetDictionary {
 struct BaseAssetController {
     // MARK: request processing
     func index(req: Request) throws -> EventLoopFuture<[BaseAsset]> {
-        return UpdateInfoController.loadUpdateInfo(db: req.db, group: BaseAsset.schema).flatMap({
+        return UpdateInfoController.loadUpdateInfo(req, group: BaseAsset.schema).flatMap({
             updateInfo -> EventLoopFuture<[BaseAsset]> in
             
-            if (updateInfo == nil || updateInfo!.isExpired(DateComponents(day: 30))) {
+            if (updateInfo.isExpired(DateComponents(day: 30))) {
                 return self.loadFromAPI(req, updateInfo: updateInfo)
             } else {
                 return self.loadFromDB(req)
@@ -148,12 +148,7 @@ struct BaseAssetController {
                     })
                 })
                 
-                if updateInfo == nil {
-                    _ = UpdateInfoController.createUpdateInfo(req, group: BaseAsset.schema, date: Date())
-                } else {
-                    _ = updateInfo!.setUpdateTime(req, date: Date())
-                }
-                
+                _ = UpdateInfoController.setUpdateTime(req, group: BaseAsset.schema, updateInfo: updateInfo)
             })
         
         return promise.futureResult
