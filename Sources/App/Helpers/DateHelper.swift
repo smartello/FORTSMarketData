@@ -1,9 +1,9 @@
 import Vapor
 
 struct DateHelper {
-    static func getDateString(_ date: Date) -> String {
+    static func getDateString(_ date: Date, format: String) -> String {
         let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyyMMdd"
+        dateFormatter.dateFormat = format
         return dateFormatter.string(from: date)
     }
     

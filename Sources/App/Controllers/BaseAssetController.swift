@@ -45,7 +45,7 @@ class BaseAssetDictionary {
 
 struct BaseAssetController {
     // MARK: request processing
-    func index(req: Request) throws -> EventLoopFuture<[BaseAsset]> {
+    func index(req: Request) throws -> EventLoopFuture<[BaseAssetWithStats]> {
         return UpdateInfoController.loadUpdateInfo(req, group: BaseAsset.schema).flatMap({
             updateInfo -> EventLoopFuture<[BaseAsset]> in
             
@@ -54,6 +54,40 @@ struct BaseAssetController {
             } else {
                 return self.loadFromDB(req)
             }
+        }).flatMap({ baseAsset -> EventLoopFuture<[BaseAssetWithStats]> in
+            let promise = req.eventLoop.makePromise(of: [BaseAssetWithStats].self)
+            
+            var baseAssetWithStats = baseAsset.map {
+                BaseAssetWithStats($0)
+            }
+            
+            BaseAssetOpenInterest.query(on: req.db).aggregate(.maximum, \.$date, as: Date.self).map({ date in
+                BaseAssetOpenInterest.query(on: req.db).filter(\.$groupType, .equal, BaseAssetOpenInterest.AssetGroupType.futures).filter(\.$date, .equal, date).all().map({ openInterest in
+                
+                    _ = openInterest.map { oi in
+                        let currentBA = baseAssetWithStats.first(where: {
+                            return $0.baseAsset.id == oi.$baseAsset.id
+                        })
+                        if currentBA != nil {
+                            currentBA!.openInterestF = oi.indLongVolume + oi.indShortVolume + oi.comLongVolume + oi.comShortVolume
+                            currentBA!.indVolumeInLongRelativeYearF = oi.indVolumeInLongRelativeYear
+                            currentBA!.comVolumeInLongRelativeYearF = oi.comVolumeInLongRelativeYear
+                        }
+                    }
+                    
+                    baseAssetWithStats.sort(by: { a,b -> Bool in
+                        return a.openInterestF > b.openInterestF
+                    })
+                    
+                    promise.succeed(baseAssetWithStats)
+                }).whenFailure({ error in
+                    promise.succeed(baseAssetWithStats)
+                })
+            }).whenFailure({ error in
+                promise.succeed(baseAssetWithStats)
+            })
+
+            return promise.futureResult
         })
     }
     

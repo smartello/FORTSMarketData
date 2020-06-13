@@ -2,7 +2,7 @@ import Fluent
 import Vapor
 
 struct BaseAssetOpenInterestController {
-    let depth: Int = 365 //want to get the data for the whole year
+    let depth: Int = 730 //want to get the data for two years
     
     func load(_ req: Request, baseAssetId: UUID, date: Date) -> EventLoopFuture<[BaseAssetOpenInterest]> {
         
@@ -53,7 +53,7 @@ struct BaseAssetOpenInterestController {
     }
     
     func loadFromCSV(_ req: Request, date: Date, updateInfo: UpdateInfo, baseAssetId: UUID, returnDate: Date? = nil) -> EventLoopFuture<[BaseAssetOpenInterest]> {
-        let dateString = DateHelper.getDateString(date)
+        let dateString = DateHelper.getDateString(date, format: "yyyyMMdd")
         let promise = req.eventLoop.makePromise(of: [BaseAssetOpenInterest].self)
         
         req.client.get(URI(string: "https://www.moex.com/ru/derivatives/open-positions-csv.aspx?d=\(dateString)&t=2")).map({ response in
@@ -62,7 +62,7 @@ struct BaseAssetOpenInterestController {
                 let string = response.body!.getString(at: 0, length: response.body!.readableBytes, encoding: .utf8)!.replacingOccurrences(of: ",", with: ".")
                 let dataset = CSVHelper.getDataset(string)
                 var openInterests = [BaseAssetOpenInterest]()
-                var returnOpenIntersts = [BaseAssetOpenInterest]()
+                var returnOpenInterests = [BaseAssetOpenInterest]()
                 //let baController = BaseAssetController()
                     
                 if dataset.count > 0 {
@@ -90,14 +90,20 @@ struct BaseAssetOpenInterestController {
                 
                 _ = openInterests.map { oi in
                     if returnDate != nil && date == returnDate && oi.baseAsset.id == baseAssetId {
-                        returnOpenIntersts.append(oi)
+                        returnOpenInterests.append(oi)
                     }
                     
-                    _ = oi.save(on: req.db)
+                    _ = oi.calcRelativeYear(req).map({ oi in
+                        _ = oi.save(on: req.db)
+                    })
                 }
                 
                 _ = updateInfo.setUpdateTime(req, date: date).map({
-                    promise.succeed(returnOpenIntersts)
+                    _ = returnOpenInterests.map { oi in
+                        return oi.calcRelativeYear(req)
+                    }.flatten(on: req.eventLoop).map({ returnOpenInterests in
+                        promise.succeed(returnOpenInterests)
+                    })
                 })
             }
         }).whenFailure({ error in

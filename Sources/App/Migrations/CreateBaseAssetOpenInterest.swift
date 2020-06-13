@@ -15,6 +15,10 @@ struct CreateBaseAssetOpenInterest: Migration {
             .field("indLongNumber", .uint)
             .field("indShortVolume", .uint)
             .field("indShortNumber", .uint)
+            .field("indVolumeInLong", .float)
+            .field("comVolumeInLong", .float)
+            .field("indVolumeInLongRelativeYear", .float)
+            .field("comVolumeInLongRelativeYear", .float)
             .unique(on: "baseAssetId", "date", "groupType")
             .create()
     }

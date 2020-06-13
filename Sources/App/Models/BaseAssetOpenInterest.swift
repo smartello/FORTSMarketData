@@ -1,4 +1,5 @@
 import Fluent
+import SQLKit
 import Vapor
 
 final class BaseAssetOpenInterest: Model, Content {
@@ -46,6 +47,18 @@ final class BaseAssetOpenInterest: Model, Content {
     @Field(key: "indShortNumber")
     var indShortNumber: UInt
     
+    @Field(key: "indVolumeInLong")
+    var indVolumeInLong: Float
+
+    @Field(key: "comVolumeInLong")
+    var comVolumeInLong: Float
+    
+    @Field(key: "indVolumeInLongRelativeYear")
+    var indVolumeInLongRelativeYear: Float
+
+    @Field(key: "comVolumeInLongRelativeYear")
+    var comVolumeInLongRelativeYear: Float
+
     init() {}
     
     init(id: UUID? = nil, baseAssetId: UUID, date: Date, groupType: AssetGroupType) {
@@ -62,6 +75,10 @@ final class BaseAssetOpenInterest: Model, Content {
         self.indLongNumber = 0
         self.indShortVolume = 0
         self.indShortNumber = 0
+        self.indVolumeInLong = 0.0
+        self.comVolumeInLong = 0.0
+        self.indVolumeInLongRelativeYear = 0.0
+        self.comVolumeInLongRelativeYear = 0.0
     }
     
     func setComOpenInterest(longVolume: UInt, longNumber: UInt, shortVolume: UInt, shortNumber: UInt) {
@@ -69,6 +86,8 @@ final class BaseAssetOpenInterest: Model, Content {
         self.comLongNumber = longNumber
         self.comShortVolume = shortVolume
         self.comShortNumber = shortNumber
+        
+        self.comVolumeInLong = (self.comLongVolume == 0 && self.comShortVolume == 0) ? 0.0 : Float(self.comLongVolume) / Float(comLongVolume + comShortVolume)
     }
     
     func setIndOpenInterest(longVolume: UInt, longNumber: UInt, shortVolume: UInt, shortNumber: UInt) {
@@ -76,5 +95,54 @@ final class BaseAssetOpenInterest: Model, Content {
         self.indLongNumber = longNumber
         self.indShortVolume = shortVolume
         self.indShortNumber = shortNumber
+        
+        self.indVolumeInLong = (self.indLongVolume == 0 && self.indShortVolume == 0) ? 0.0 : Float(self.indLongVolume) / Float(indLongVolume + indShortVolume)
+    }
+    
+    func calcRelativeYear(_ req: Request) -> EventLoopFuture<BaseAssetOpenInterest> {
+        let promise = req.eventLoop.makePromise(of: BaseAssetOpenInterest.self)
+        
+        if self.indVolumeInLongRelativeYear == 0.0 || self.comVolumeInLongRelativeYear == 0.0 {
+            let db: SQLDatabase = req.db as! SQLDatabase
+            
+            let toDateString = DateHelper.getDateString(Calendar.current.date(byAdding: .day, value: -1, to: self.date)!, format: "yyyy-MM-dd")
+            let fromDateString = DateHelper.getDateString(Calendar.current.date(byAdding: .year, value: -1, to: self.date)!, format: "yyyy-MM-dd")
+            let filterString = "WHERE \"baseAssetId\" = '\(self.$baseAsset.id)' AND \"date\" >= '\(fromDateString)' AND \"date\" <= '\(toDateString)' AND \"groupType\" = '\(self.groupType.rawValue)'"
+            
+            db.raw("SELECT MAX(\"indVolumeInLong\") AS maxInd, MIN(\"indVolumeInLong\") as minInd, MAX(\"comVolumeInLong\") as maxCom, MIN(\"comVolumeInLong\") as minCom FROM \"\(BaseAssetOpenInterest.schema)\" \(filterString)").first().map({ resultLine in
+                if resultLine != nil {
+                    let maxInd = (try? resultLine!.decode(column: resultLine!.allColumns[0], as:  Float.self)) ?? 0.0
+                    let minInd = (try? resultLine!.decode(column: resultLine!.allColumns[1], as: Float.self)) ?? 0.0
+                    let maxCom = (try? resultLine!.decode(column: resultLine!.allColumns[2], as: Float.self)) ?? 0.0
+                    let minCom = (try? resultLine!.decode(column: resultLine!.allColumns[3], as: Float.self)) ?? 0.0
+                    
+                    if self.indVolumeInLong > maxInd {
+                        self.indVolumeInLongRelativeYear = 1.0
+                    } else if self.indVolumeInLong < minInd {
+                        self.indVolumeInLongRelativeYear = 0.0
+                    } else {
+                        let indRange = maxInd - minInd
+                        self.indVolumeInLongRelativeYear = indRange == 0 ? self.indVolumeInLong : (self.indVolumeInLong - minInd)/indRange
+                    }
+                    
+                    if self.comVolumeInLong > maxCom {
+                        self.comVolumeInLongRelativeYear = 1.0
+                    } else if self.comVolumeInLong < minCom {
+                        self.comVolumeInLongRelativeYear = 0.0
+                    } else {
+                        let comRange = maxCom - minCom
+                        self.comVolumeInLongRelativeYear = comRange == 0 ? self.comVolumeInLong : (self.comVolumeInLong - minCom)/comRange
+                    }
+                }
+                
+                promise.succeed(self)
+            }).whenFailure({ error in
+                promise.succeed(self)
+            })
+        } else {
+            promise.succeed(self)
+        }
+        
+        return promise.futureResult
     }
 }
