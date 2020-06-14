@@ -4,31 +4,36 @@ import Vapor
 struct BaseAssetOpenInterestController {
     let depth: Int = 730 //want to get the data for two years
     
-    func load(_ req: Request, baseAssetId: UUID, date: Date) -> EventLoopFuture<[BaseAssetOpenInterest]> {
+    func load(_ req: Request, baseAssetId: UUID, startDate: Date, endDate: Date) -> EventLoopFuture<[BaseAssetOpenInterest]> {
         
         let defaultStartDate = Calendar.current.date(byAdding: DateComponents(day: -1 * self.depth), to: Date())!
         
         return UpdateInfoController.loadUpdateInfo(req, group: BaseAssetOpenInterest.schema, defaultDate: defaultStartDate).flatMap({
             updateInfo -> EventLoopFuture<[BaseAssetOpenInterest]> in
             
-            let startDate = updateInfo.getDate()
+            let startDateToLoad = updateInfo.getDate()
             
             if (!updateInfo.isToday() && !updateInfo.longOperationInProgress()) {
-                return self.loadFromCSV(req, endDate: date, startDate: startDate, baseAssetId: baseAssetId, returnDate: date, updateInfo: updateInfo)
+                return self.loadFromCSV(req, endDate: endDate, startDate: startDateToLoad, baseAssetId: baseAssetId, returnStartDate: startDate, returnEndDate: endDate, updateInfo: updateInfo)
             } else {
-                return self.loadFromDB(req, baseAssetId: baseAssetId, date: date)
+                return self.loadFromDB(req, baseAssetId: baseAssetId, startDate: startDate, endDate: endDate)
             }
         })
     }
     
     // @MARK: load from CSV file
-    func loadFromCSV(_ req: Request, endDate: Date, startDate: Date, baseAssetId: UUID, returnDate: Date? = nil, updateInfo: UpdateInfo) -> EventLoopFuture<[BaseAssetOpenInterest]> {
+    func loadFromCSV(_ req: Request, endDate: Date, startDate: Date, baseAssetId: UUID, returnStartDate: Date? = nil, returnEndDate: Date? = nil, updateInfo: UpdateInfo) -> EventLoopFuture<[BaseAssetOpenInterest]> {
         let promise = req.eventLoop.makePromise(of: [BaseAssetOpenInterest].self)
         let queue = EventLoopFutureQueue(eventLoop: req.eventLoop)
         var resultSetFuture = [EventLoopFuture<[BaseAssetOpenInterest]>]()
         
         _ = updateInfo.startLongOperation(req).map({
-            DateHelper.iterateMidnights(startDate: startDate, endDate: endDate, function: { date in resultSetFuture.append(queue.append(self.loadFromCSV(req, date: date, updateInfo: updateInfo, baseAssetId: baseAssetId, returnDate: returnDate))) })
+            DateHelper.iterateMidnights(startDate: startDate, endDate: endDate, function: { date in resultSetFuture.append(queue.append(self.loadFromCSV(req, date: date, updateInfo: updateInfo, baseAssetId: baseAssetId, returnStartDate: returnStartDate, returnEndDate: returnEndDate))) })
+            
+            if returnStartDate != nil && returnEndDate != nil && returnStartDate! < startDate {
+                let endDateDB = DateHelper.getPreviousDay(startDate)
+                resultSetFuture.append(self.loadFromDB(req, baseAssetId: baseAssetId, startDate: returnStartDate!, endDate: endDateDB))
+            }
                 
             _ = resultSetFuture.flatten(on: req.eventLoop).map({ baseAssetOpenInterest in
                 print("ok, it's all received (or not) and it's a time for db update")
@@ -52,7 +57,7 @@ struct BaseAssetOpenInterestController {
         return promise.futureResult
     }
     
-    func loadFromCSV(_ req: Request, date: Date, updateInfo: UpdateInfo, baseAssetId: UUID, returnDate: Date? = nil) -> EventLoopFuture<[BaseAssetOpenInterest]> {
+    func loadFromCSV(_ req: Request, date: Date, updateInfo: UpdateInfo, baseAssetId: UUID, returnStartDate: Date? = nil, returnEndDate: Date? = nil) -> EventLoopFuture<[BaseAssetOpenInterest]> {
         let dateString = DateHelper.getDateString(date, format: "yyyyMMdd")
         let promise = req.eventLoop.makePromise(of: [BaseAssetOpenInterest].self)
         
@@ -89,7 +94,7 @@ struct BaseAssetOpenInterestController {
                 }
                 
                 _ = openInterests.map { oi in
-                    if returnDate != nil && date == returnDate && oi.baseAsset.id == baseAssetId {
+                    if returnStartDate != nil && returnEndDate != nil && date >= returnStartDate! && date <= returnEndDate! && oi.$baseAsset.id == baseAssetId {
                         returnOpenInterests.append(oi)
                     }
                     
@@ -115,8 +120,8 @@ struct BaseAssetOpenInterestController {
     }
     
     // MARK: database functions
-    func loadFromDB(_ req: Request, baseAssetId: UUID, date: Date) -> EventLoopFuture<[BaseAssetOpenInterest]> {
+    func loadFromDB(_ req: Request, baseAssetId: UUID, startDate: Date, endDate: Date) -> EventLoopFuture<[BaseAssetOpenInterest]> {
         
-        return BaseAssetOpenInterest.query(on: req.db).filter(\.$baseAsset.$id == baseAssetId).filter(\.$date == date).all()
+        return BaseAssetOpenInterest.query(on: req.db).filter(\.$baseAsset.$id == baseAssetId).filter(\.$date >= startDate).filter(\.$date <= endDate).all()
     }
 }
