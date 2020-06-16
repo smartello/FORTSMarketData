@@ -104,10 +104,11 @@ struct BaseAssetController {
                         promise.fail(Abort(.notFound, reason: "No info on \(baseAssetCode!)"))
                     } else {
                         let baseAssetDetailed = BaseAssetDetailed(req, baseAsset: baseAsset!)
-                        _ = baseAssetDetailed.loadOpenInterest(req).map({ bad in
-                            promise.succeed(bad)
+                        baseAssetDetailed.loadOpenInterest(req).and(baseAssetDetailed.loadPercentiles(req, topPercentile: 0.9, meanPercentile: 0.5, bottomPercentile: 0.1, keyDate: Date(), length: 365)).map({ (bad1, bad2) in
+                            promise.succeed(baseAssetDetailed)
+                        }).whenFailure({ error in
+                            promise.succeed(baseAssetDetailed)
                         })
-                        
                     }
                 })
             }
