@@ -4,7 +4,7 @@ import Fluent
 final class BaseAssetWithStats: Content {
     let baseAsset: BaseAsset
     
-    var openInterestF: UInt = 0
+    var openInterestF: Int = 0
     var indVolumeInLongRelativeYearF: Float = 0.0
     var comVolumeInLongRelativeYearF: Float = 0.0
     

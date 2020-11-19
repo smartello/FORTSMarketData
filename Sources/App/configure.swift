@@ -7,7 +7,7 @@ public func configure(_ app: Application) throws {
     // uncomment to serve files from /Public folder
     // app.middleware.use(FileMiddleware(publicDirectory: app.directory.publicDirectory))
     let corsConfiguration = CORSMiddleware.Configuration(
-        allowedOrigin: .whitelist(["http://\(Environment.get("FRONTEND_HOST") ?? "localhost"):\(Environment.get("FRONTEND_PORT") ?? "3000")"]),
+        allowedOrigin: .any(["http://\(Environment.get("FRONTEND_HOST") ?? "localhost"):\(Environment.get("FRONTEND_PORT") ?? "3000")"]),
         allowedMethods: [.GET, .POST, .PUT, .OPTIONS, .DELETE, .PATCH],
         allowedHeaders: [.accept, .authorization, .contentType, .origin, .xRequestedWith, .userAgent, .accessControlAllowOrigin]
     )

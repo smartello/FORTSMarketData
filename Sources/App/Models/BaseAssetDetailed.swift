@@ -33,7 +33,7 @@ final class BaseAssetDetailed: Content {
         let previousDateMinusMonth = Calendar.current.date(byAdding: DateComponents(month: -1), to: previousDate)!
         
         let baoiController = BaseAssetOpenInterestController()
-        _ = baoiController.load(req, baseAssetId: self.baseAsset.id!, startDate: previousDateMinusMonth, endDate: previousDate).map({ baoi in
+        baoiController.load(req, baseAssetId: self.baseAsset.id!, startDate: previousDateMinusMonth, endDate: previousDate).map({ baoi in
             for oi in baoi {
                 if oi.groupType == .futures {
                     self.futures.openInterest.append(oi)

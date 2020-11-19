@@ -123,47 +123,10 @@ struct BaseAssetController {
     // Retrieves all entries available in API and updates the database
     func loadFromAPI(_ req: Request, updateInfo: UpdateInfo? = nil) -> EventLoopFuture<[BaseAsset]> {
         // external model definition
-        struct SecurityData: Decodable {
-            let securities: Securities
-        }
-
-        struct Securities: Decodable {
-            let columns: [String]
-            let data: [[Datum]]
-        }
-        
-        enum Datum: Decodable {
-            case double(Double)
-            case string(String)
-            case null
-
-            init(from decoder: Decoder) throws {
-                let container = try decoder.singleValueContainer()
-                if let x = try? container.decode(Double.self) {
-                    self = .double(x)
-                    return
-                }
-                if let x = try? container.decode(String.self) {
-                    self = .string(x)
-                    return
-                }
-                if container.decodeNil() {
-                    self = .null
-                    return
-                }
-                throw DecodingError.typeMismatch(Datum.self, DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Wrong type for Datum"))
-            }
-            
-            var stringValue : String {
-                guard case let .string(value) = self else { return "" }
-                return value
-            }
-        }
-        
         let promise = req.eventLoop.makePromise(of: [BaseAsset].self)
 
-        _ = req.client.get("http://iss.moex.com/iss/engines/futures/markets/forts/boards/RFUD/securities.json?iss.only=sequrities&iss.meta=off").flatMapThrowing({ response in
-                return try! response.content.decode(SecurityData.self)
+        _ = req.client.get("https://iss.moex.com/iss/engines/futures/markets/forts/boards/RFUD/securities.json?iss.only=sequrities&iss.meta=off").flatMapThrowing({ response in
+                return try! response.content.decode(CSVHelper.SecurityData.self)
             }).map({ securityData in
                 var baseAssetAPI = [BaseAsset]()
 

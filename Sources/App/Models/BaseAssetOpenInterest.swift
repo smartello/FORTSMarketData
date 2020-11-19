@@ -24,28 +24,28 @@ final class BaseAssetOpenInterest: Model, Content {
     var groupType: AssetGroupType
     
     @Field(key: "comLongVolume")
-    var comLongVolume: UInt
+    var comLongVolume: Int
     
     @Field(key: "comLongNumber")
-    var comLongNumber: UInt
+    var comLongNumber: Int
     
     @Field(key: "comShortVolume")
-    var comShortVolume: UInt
+    var comShortVolume: Int
     
     @Field(key: "comShortNumber")
-    var comShortNumber: UInt
+    var comShortNumber: Int
     
     @Field(key: "indLongVolume")
-    var indLongVolume: UInt
+    var indLongVolume: Int
     
     @Field(key: "indLongNumber")
-    var indLongNumber: UInt
+    var indLongNumber: Int
     
     @Field(key: "indShortVolume")
-    var indShortVolume: UInt
+    var indShortVolume: Int
     
     @Field(key: "indShortNumber")
-    var indShortNumber: UInt
+    var indShortNumber: Int
     
     @Field(key: "indVolumeInLong")
     var indVolumeInLong: Float
@@ -81,7 +81,7 @@ final class BaseAssetOpenInterest: Model, Content {
         self.comVolumeInLongRelativeYear = 0.0
     }
     
-    func setComOpenInterest(longVolume: UInt, longNumber: UInt, shortVolume: UInt, shortNumber: UInt) {
+    func setComOpenInterest(longVolume: Int, longNumber: Int, shortVolume: Int, shortNumber: Int) {
         self.comLongVolume = longVolume
         self.comLongNumber = longNumber
         self.comShortVolume = shortVolume
@@ -90,7 +90,7 @@ final class BaseAssetOpenInterest: Model, Content {
         self.comVolumeInLong = (self.comLongVolume == 0 && self.comShortVolume == 0) ? 0.0 : Float(self.comLongVolume) / Float(comLongVolume + comShortVolume)
     }
     
-    func setIndOpenInterest(longVolume: UInt, longNumber: UInt, shortVolume: UInt, shortNumber: UInt) {
+    func setIndOpenInterest(longVolume: Int, longNumber: Int, shortVolume: Int, shortNumber: Int) {
         self.indLongVolume = longVolume
         self.indLongNumber = longNumber
         self.indShortVolume = shortVolume

@@ -1,8 +1,32 @@
-//
-//  File.swift
-//  
-//
-//  Created by Igor Kashin on 21.06.2020.
-//
+import Fluent
+import Vapor
 
-import Foundation
+final class FutureContract: Model, Content {
+    static let schema = "futureContract"
+    
+    @ID(key: .id)
+    var id: UUID?
+    
+    @Parent(key: "baseAssetId")
+    var baseAsset: BaseAsset
+    
+    @Field(key: "expirationDate")
+    var expirationDate: Date
+    
+    @Field(key: "secid")
+    var secid: String
+    
+    @Field(key: "latname")
+    var latname: String
+    
+    
+    init() { }
+    
+    init(id: UUID? = nil, baseAssetId: UUID, expirationDate: Date, secid: String, latname: String) {
+        self.id = id
+        self.$baseAsset.id = baseAssetId
+        self.expirationDate = expirationDate
+        self.secid = secid
+        self.latname = latname
+    }
+}

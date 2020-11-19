@@ -80,9 +80,9 @@ struct BaseAssetOpenInterestController {
                                     openInterests.append(openInterest!)
                                 }
                                 if UInt(Double(line[4]) ?? 0) == 1 {
-                                    openInterest!.setIndOpenInterest(longVolume: UInt(Double(line[8]) ?? 0), longNumber: UInt(Double(line[5]) ?? 0), shortVolume: UInt(Double(line[7]) ?? 0), shortNumber: UInt(Double(line[6]) ?? 0))
+                                    openInterest!.setIndOpenInterest(longVolume: Int(Double(line[8]) ?? 0), longNumber: Int(Double(line[5]) ?? 0), shortVolume: Int(Double(line[7]) ?? 0), shortNumber: Int(Double(line[6]) ?? 0))
                                 } else {
-                                    openInterest!.setComOpenInterest(longVolume: UInt(Double(line[8]) ?? 0), longNumber: UInt(Double(line[5]) ?? 0), shortVolume: UInt(Double(line[7]) ?? 0), shortNumber: UInt(Double(line[6]) ?? 0))
+                                    openInterest!.setComOpenInterest(longVolume: Int(Double(line[8]) ?? 0), longNumber: Int(Double(line[5]) ?? 0), shortVolume: Int(Double(line[7]) ?? 0), shortNumber: Int(Double(line[6]) ?? 0))
                                 }
                             }
                             //print(baController.dictionary.count)
