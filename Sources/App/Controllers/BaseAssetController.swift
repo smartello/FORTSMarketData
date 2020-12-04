@@ -160,7 +160,7 @@ struct BaseAssetController {
             if response.status == .ok {
                 let string = response.body!.getString(at: 0, length: response.body!.readableBytes)?.replacingOccurrences(of: "&quot;", with: "\"").replacingOccurrences(of: "\n|\r|\t|<\\/?span>|<\\/?b>|&shy;", with: "", options: .regularExpression).replacingOccurrences(of: "&ndash;", with: "–").replacingOccurrences(of: "&nbsp;", with: " ")
                 let range = NSRange(location: 0, length: string!.count)
-                let regex = try! NSRegularExpression(pattern: "<td (align=\"center\"|style=\"text\\-align: center;\")> ?[\\w\\d ]{2} ?<\\/td><td (align=\"center\"|style=\"text\\-align: center;\")>([\\w\\d ]{2,4})<\\/td><td>([A-Za-zА-Яа-я0-9\\\"\\/\\–\\-\\.\\,\\%() ]*)<\\/td>")
+                let regex = try! NSRegularExpression(pattern: "<td (align=\"center\"|style=\"text\\-align: center;\")> ?[\\w\\d ]{2} ?<\\/td><td (align=\"center\"|style=\"text\\-align: center;\")>([\\w\\d ]{2,4})<\\/td><td(| style=\"text\\-align: left;\")>([A-Za-zА-Яа-я0-9\\\"\\/\\–\\-\\.\\,\\%() ]*)<\\/td>")
                 let matches = regex.matches(in: string!, options: .init(), range: range)
                 for match in matches {
                     let codeRange = Range(match.range(at: 3), in: string!)!
@@ -168,7 +168,7 @@ struct BaseAssetController {
                     
                     let itemIndex = baseAsset.firstIndex(where: { return $0.code == code })
                     if itemIndex != nil {
-                        let nameRange = Range(match.range(at: 4), in: string!)!
+                        let nameRange = Range(match.range(at: 5), in: string!)!
                         baseAsset[itemIndex!].name = String(string![nameRange])
                     }
                 }
